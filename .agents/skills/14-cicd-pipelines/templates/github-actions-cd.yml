@@ -1,0 +1,59 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  release:
+    types: [published]
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: 
+      name: staging
+      url: https://staging.example.com
+      
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure cloud credentials
+        uses: some-cloud/auth-action@v2
+        with:
+          credentials: ${{ secrets.CLOUD_CREDENTIALS }}
+          
+      - name: Deploy application
+        run: ./scripts/deploy.sh --env staging
+        
+      - name: Run Smoke Tests
+        run: ./scripts/smoke-test.sh https://staging.example.com
+        
+      - name: Rollback on Failure
+        if: failure()
+        run: ./scripts/rollback.sh --env staging
+
+  deploy-production:
+    name: Deploy to Production
+    if: github.event_name == 'release'
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: 
+      name: production
+      url: https://example.com
+      
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure cloud credentials
+        uses: some-cloud/auth-action@v2
+        with:
+          credentials: ${{ secrets.CLOUD_CREDENTIALS }}
+          
+      - name: Deploy application
+        run: ./scripts/deploy.sh --env production
+        
+      - name: Run Smoke Tests
+        run: ./scripts/smoke-test.sh https://example.com
+        
+      - name: Rollback on Failure
+        if: failure()
+        run: ./scripts/rollback.sh --env production
